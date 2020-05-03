@@ -1,0 +1,23 @@
+{
+  "name": "dfx-first-module",
+  "version": "1.0.0",
+  "description": "npm package develop demo",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Haru1990/my-first-module.git"
+  },
+  "keywords": [
+    "npm",
+    "package"
+  ],
+  "author": "fangxu",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Haru1990/my-first-module/issues"
+  },
+  "homepage": "https://github.com/Haru1990/my-first-module#readme"
+}
