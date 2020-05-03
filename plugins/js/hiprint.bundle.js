@@ -11,7 +11,7 @@
 import jQuery from 'jquery';
 import $ from 'jquery';
 import JsBarcode from 'jsbarcode';
-import QRCode from 'qrcode';
+import QRCode from 'qrcodejs2';
 
 function _instanceof(left, right) { if (right != null && typeof Symbol !== "undefined" && right[Symbol.hasInstance]) { return !!right[Symbol.hasInstance](left); } else { return left instanceof right; } }
 
