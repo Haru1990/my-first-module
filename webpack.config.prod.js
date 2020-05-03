@@ -1,10 +1,10 @@
 const path = require('path');
-const nodeExternals = require('webpack-node-externals');
+// const nodeExternals = require('webpack-node-externals');
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
-const CopyPlugin = require('copy-webpack-plugin');
+// const CopyPlugin = require('copy-webpack-plugin');
 
 module.exports = {
-  entry: './src/index.js',
+  entry: './index.js',
   mode: 'none',
   output: {
     filename: 'bundle.js',
@@ -18,17 +18,17 @@ module.exports = {
       filename: "[name].css",
       chunkFilename: "[id].css"
     }),
-    new CopyPlugin([
-      { from: 'index.d.ts', to: 'bundle.d.ts' },
-    ]),
+    // new CopyPlugin([
+    //   { from: 'index.d.ts', to: 'bundle.d.ts' },
+    // ]),
   ],
   module: {
     rules: [
-      {
-        test: /\.js$/,
-        use: 'babel-loader',
-        exclude: /node_modules/
-      },
+      // {
+      //   test: /\.js$/,
+      //   use: 'babel-loader',
+      //   exclude: /node_modules/
+      // },
       {
         test: /\.css$/,
         use: [
@@ -45,5 +45,5 @@ module.exports = {
       },
     ]
   },
-  externals: [nodeExternals()],
+  // externals: [nodeExternals()],
 };
