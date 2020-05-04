@@ -93,9 +93,9 @@ module.exports =
 __webpack_require__.r(__webpack_exports__);
 /* harmony import */ var _plugins_css_hiprint_css__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(1);
 /* harmony import */ var _plugins_css_hiprint_css__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(_plugins_css_hiprint_css__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var _plugins_css_print_lock_css__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(2);
+/* harmony import */ var _plugins_css_print_lock_css__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(5);
 /* harmony import */ var _plugins_css_print_lock_css__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(_plugins_css_print_lock_css__WEBPACK_IMPORTED_MODULE_1__);
-/* harmony import */ var _plugins_js_hiprint_bundle__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(3);
+/* harmony import */ var _plugins_js_hiprint_bundle__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(7);
 
 
 
@@ -108,25 +108,462 @@ __webpack_require__.r(__webpack_exports__);
 /* 1 */
 /***/ (function(module, exports, __webpack_require__) {
 
-// extracted by mini-css-extract-plugin
+var api = __webpack_require__(2);
+            var content = __webpack_require__(3);
+
+            content = content.__esModule ? content.default : content;
+
+            if (typeof content === 'string') {
+              content = [[module.i, content, '']];
+            }
+
+var options = {};
+
+options.insert = "head";
+options.singleton = false;
+
+var update = api(content, options);
+
+
+
+module.exports = content.locals || {};
 
 /***/ }),
 /* 2 */
 /***/ (function(module, exports, __webpack_require__) {
 
-// extracted by mini-css-extract-plugin
+"use strict";
+
+
+var isOldIE = function isOldIE() {
+  var memo;
+  return function memorize() {
+    if (typeof memo === 'undefined') {
+      // Test for IE <= 9 as proposed by Browserhacks
+      // @see http://browserhacks.com/#hack-e71d8692f65334173fee715c222cb805
+      // Tests for existence of standard globals is to allow style-loader
+      // to operate correctly into non-standard environments
+      // @see https://github.com/webpack-contrib/style-loader/issues/177
+      memo = Boolean(window && document && document.all && !window.atob);
+    }
+
+    return memo;
+  };
+}();
+
+var getTarget = function getTarget() {
+  var memo = {};
+  return function memorize(target) {
+    if (typeof memo[target] === 'undefined') {
+      var styleTarget = document.querySelector(target); // Special case to return head of iframe instead of iframe itself
+
+      if (window.HTMLIFrameElement && styleTarget instanceof window.HTMLIFrameElement) {
+        try {
+          // This will throw an exception if access to iframe is blocked
+          // due to cross-origin restrictions
+          styleTarget = styleTarget.contentDocument.head;
+        } catch (e) {
+          // istanbul ignore next
+          styleTarget = null;
+        }
+      }
+
+      memo[target] = styleTarget;
+    }
+
+    return memo[target];
+  };
+}();
+
+var stylesInDom = [];
+
+function getIndexByIdentifier(identifier) {
+  var result = -1;
+
+  for (var i = 0; i < stylesInDom.length; i++) {
+    if (stylesInDom[i].identifier === identifier) {
+      result = i;
+      break;
+    }
+  }
+
+  return result;
+}
+
+function modulesToDom(list, options) {
+  var idCountMap = {};
+  var identifiers = [];
+
+  for (var i = 0; i < list.length; i++) {
+    var item = list[i];
+    var id = options.base ? item[0] + options.base : item[0];
+    var count = idCountMap[id] || 0;
+    var identifier = "".concat(id, " ").concat(count);
+    idCountMap[id] = count + 1;
+    var index = getIndexByIdentifier(identifier);
+    var obj = {
+      css: item[1],
+      media: item[2],
+      sourceMap: item[3]
+    };
+
+    if (index !== -1) {
+      stylesInDom[index].references++;
+      stylesInDom[index].updater(obj);
+    } else {
+      stylesInDom.push({
+        identifier: identifier,
+        updater: addStyle(obj, options),
+        references: 1
+      });
+    }
+
+    identifiers.push(identifier);
+  }
+
+  return identifiers;
+}
+
+function insertStyleElement(options) {
+  var style = document.createElement('style');
+  var attributes = options.attributes || {};
+
+  if (typeof attributes.nonce === 'undefined') {
+    var nonce =  true ? __webpack_require__.nc : undefined;
+
+    if (nonce) {
+      attributes.nonce = nonce;
+    }
+  }
+
+  Object.keys(attributes).forEach(function (key) {
+    style.setAttribute(key, attributes[key]);
+  });
+
+  if (typeof options.insert === 'function') {
+    options.insert(style);
+  } else {
+    var target = getTarget(options.insert || 'head');
+
+    if (!target) {
+      throw new Error("Couldn't find a style target. This probably means that the value for the 'insert' parameter is invalid.");
+    }
+
+    target.appendChild(style);
+  }
+
+  return style;
+}
+
+function removeStyleElement(style) {
+  // istanbul ignore if
+  if (style.parentNode === null) {
+    return false;
+  }
+
+  style.parentNode.removeChild(style);
+}
+/* istanbul ignore next  */
+
+
+var replaceText = function replaceText() {
+  var textStore = [];
+  return function replace(index, replacement) {
+    textStore[index] = replacement;
+    return textStore.filter(Boolean).join('\n');
+  };
+}();
+
+function applyToSingletonTag(style, index, remove, obj) {
+  var css = remove ? '' : obj.media ? "@media ".concat(obj.media, " {").concat(obj.css, "}") : obj.css; // For old IE
+
+  /* istanbul ignore if  */
+
+  if (style.styleSheet) {
+    style.styleSheet.cssText = replaceText(index, css);
+  } else {
+    var cssNode = document.createTextNode(css);
+    var childNodes = style.childNodes;
+
+    if (childNodes[index]) {
+      style.removeChild(childNodes[index]);
+    }
+
+    if (childNodes.length) {
+      style.insertBefore(cssNode, childNodes[index]);
+    } else {
+      style.appendChild(cssNode);
+    }
+  }
+}
+
+function applyToTag(style, options, obj) {
+  var css = obj.css;
+  var media = obj.media;
+  var sourceMap = obj.sourceMap;
+
+  if (media) {
+    style.setAttribute('media', media);
+  } else {
+    style.removeAttribute('media');
+  }
+
+  if (sourceMap && btoa) {
+    css += "\n/*# sourceMappingURL=data:application/json;base64,".concat(btoa(unescape(encodeURIComponent(JSON.stringify(sourceMap)))), " */");
+  } // For old IE
+
+  /* istanbul ignore if  */
+
+
+  if (style.styleSheet) {
+    style.styleSheet.cssText = css;
+  } else {
+    while (style.firstChild) {
+      style.removeChild(style.firstChild);
+    }
+
+    style.appendChild(document.createTextNode(css));
+  }
+}
+
+var singleton = null;
+var singletonCounter = 0;
+
+function addStyle(obj, options) {
+  var style;
+  var update;
+  var remove;
+
+  if (options.singleton) {
+    var styleIndex = singletonCounter++;
+    style = singleton || (singleton = insertStyleElement(options));
+    update = applyToSingletonTag.bind(null, style, styleIndex, false);
+    remove = applyToSingletonTag.bind(null, style, styleIndex, true);
+  } else {
+    style = insertStyleElement(options);
+    update = applyToTag.bind(null, style, options);
+
+    remove = function remove() {
+      removeStyleElement(style);
+    };
+  }
+
+  update(obj);
+  return function updateStyle(newObj) {
+    if (newObj) {
+      if (newObj.css === obj.css && newObj.media === obj.media && newObj.sourceMap === obj.sourceMap) {
+        return;
+      }
+
+      update(obj = newObj);
+    } else {
+      remove();
+    }
+  };
+}
+
+module.exports = function (list, options) {
+  options = options || {}; // Force single-tag solution on IE6-9, which has a hard limit on the # of <style>
+  // tags it will allow on a page
+
+  if (!options.singleton && typeof options.singleton !== 'boolean') {
+    options.singleton = isOldIE();
+  }
+
+  list = list || [];
+  var lastIdentifiers = modulesToDom(list, options);
+  return function update(newList) {
+    newList = newList || [];
+
+    if (Object.prototype.toString.call(newList) !== '[object Array]') {
+      return;
+    }
+
+    for (var i = 0; i < lastIdentifiers.length; i++) {
+      var identifier = lastIdentifiers[i];
+      var index = getIndexByIdentifier(identifier);
+      stylesInDom[index].references--;
+    }
+
+    var newLastIdentifiers = modulesToDom(newList, options);
+
+    for (var _i = 0; _i < lastIdentifiers.length; _i++) {
+      var _identifier = lastIdentifiers[_i];
+
+      var _index = getIndexByIdentifier(_identifier);
+
+      if (stylesInDom[_index].references === 0) {
+        stylesInDom[_index].updater();
+
+        stylesInDom.splice(_index, 1);
+      }
+    }
+
+    lastIdentifiers = newLastIdentifiers;
+  };
+};
 
 /***/ }),
 /* 3 */
+/***/ (function(module, exports, __webpack_require__) {
+
+// Imports
+var ___CSS_LOADER_API_IMPORT___ = __webpack_require__(4);
+exports = ___CSS_LOADER_API_IMPORT___(false);
+// Module
+exports.push([module.i, "\r\n/* hiprint-pagination */\r\n.hiprint-pagination {\r\n    display: inline-block;\r\n    padding-left: 0;\r\n}\r\n    .hiprint-pagination > li {\r\n        border: 1px solid #bdc3c7;\r\n        -moz-border-radius: 2px;\r\n        -webkit-border-radius: 2px;\r\n        display: block;\r\n        float: left;\r\n        padding: 5px;\r\n        text-decoration: none;\r\n        margin-right: 5px;\r\n        margin-bottom: 5px;\r\n        font-family: helvetica;\r\n        font-size: 13px;\r\n        cursor: pointer\r\n    }\r\n\r\n        .hiprint-pagination > li > span {\r\n            padding: 0 10px 0 10px;\r\n        }\r\n\r\n        .hiprint-pagination > li > a {\r\n            color: #bdc3c7;\r\n            font-weight: bold;\r\n            text-decoration: none;\r\n            font-size: 11px;\r\n            padding: 3px;\r\n        }\r\n\r\n            .hiprint-pagination > li > a:hover {\r\n                color: red;\r\n            }\r\n\r\n\r\n\r\n.hiprint-pagination-sm > li > a {\r\n    padding: 5px 10px;\r\n    font-size: 12px;\r\n    line-height: 1.5;\r\n}\r\n/*rect-printElement-type hiprint-printElement-type */\r\n.rect-printElement-types .hiprint-printElement-type {\r\n    display: block;\r\n}\r\n\r\n.rect-printElement-types .hiprint-printElement-type {\r\n    padding: 0 0 0 0;\r\n    list-style: none;\r\n}\r\n\r\n    .rect-printElement-types .hiprint-printElement-type > li > .title {\r\n        display: block;\r\n        padding: 4px 0px;\r\n        clear: both;\r\n    }\r\n\r\n    .rect-printElement-types .hiprint-printElement-type > li > ul {\r\n        padding: 0 0 0 0;\r\n        display: block;\r\n        list-style: none;\r\n    }\r\n\r\n        .rect-printElement-types .hiprint-printElement-type > li > ul > li {\r\n            display: block;\r\n            width: 50%;\r\n            float: left;\r\n            max-width: 100px;\r\n        }\r\n\r\n            .rect-printElement-types .hiprint-printElement-type > li > ul > li > a {\r\n                height: 92px;\r\n                padding: 12px 6px;\r\n                margin-left: -1px;\r\n                line-height: 1.42857143;\r\n                color: #337ab7;\r\n                text-decoration: none;\r\n                background-color: #fff;\r\n                border: 1px solid #ddd;\r\n                margin-right: 5px;\r\n                width: 95%;\r\n                max-width: 100px;\r\n                display: inline-block;\r\n                text-align: center;\r\n                margin-bottom: 7px;\r\n                box-sizing: border-box;\r\n                color: #b9a5a6;\r\n                border: 1px solid rgba(0,0,0,0.2);\r\n                border-radius: 3px;\r\n                box-shadow: 0 1px 0 0 rgba(0,0,0,0.15);\r\n            }\r\n\r\n\r\n/*small-printElement-type hiprint-printElement-type */\r\n.small-printElement-types .hiprint-printElement-type {\r\n    display: block;\r\n}\r\n\r\n.small-printElement-types .hiprint-printElement-type {\r\n    padding: 0 0 0 0;\r\n    list-style: none;\r\n}\r\n\r\n    .small-printElement-types .hiprint-printElement-type > li > .title {\r\n        display: block;\r\n        padding: 4px 0px;\r\n        clear: both;\r\n    }\r\n\r\n    .small-printElement-types .hiprint-printElement-type > li > ul {\r\n        padding: 0 0 0 0;\r\n        display: block;\r\n        list-style: none;\r\n        width: 100%;\r\n    }\r\n\r\n        .small-printElement-types .hiprint-printElement-type > li > ul > li {\r\n            display: block;\r\n            width: 50%;\r\n            float: left;\r\n            padding: 0 4px;\r\n        }\r\n\r\n            .small-printElement-types .hiprint-printElement-type > li > ul > li > a {\r\n                height: 22px;\r\n                /* padding: 12px 6px; */\r\n                /* margin-left: -1px; */\r\n                line-height: 20px;\r\n                color: #337ab7;\r\n                text-decoration: none;\r\n                background-color: #fff;\r\n                border: 1px solid #ddd;\r\n                margin-right: 5px;\r\n                width: 100%;\r\n                display: block;\r\n                text-align: center;\r\n                margin-bottom: 7px;\r\n                box-sizing: border-box;\r\n                color: #b9a5a6;\r\n                border: 1px solid rgba(0,0,0,0.2);\r\n                border-radius: 3px;\r\n                box-shadow: 0 1px 0 0 rgba(0,0,0,0.15);\r\n            }\r\n\r\n\r\n/* hiprint-toolbar*/\r\n\r\n.hiprint-toolbar {\r\n}\r\n\r\n    .hiprint-toolbar > ul {\r\n        padding: 0px;\r\n        margin-bottom: 5px;\r\n    }\r\n\r\n        .hiprint-toolbar > ul > li {\r\n            display: inline-block;\r\n        }\r\n\r\n            .hiprint-toolbar > ul > li > a {\r\n                position: relative;\r\n                float: left;\r\n                padding: 3px 10px;\r\n                margin-left: -1px;\r\n                line-height: 1.42857143;\r\n                color: #337ab7;\r\n                text-decoration: none;\r\n                background-color: #fff;\r\n                border: 1px solid #ddd;\r\n                margin-right: 4px;\r\n                cursor: pointer;\r\n            }\r\n\r\n\r\n.hiprint-printElement-type .glyphicon-class {\r\n    display: block;\r\n    text-align: center;\r\n    word-wrap: break-word;\r\n    /*font-size: 0.65rem;\r\nfont-weight: normal;*/\r\n    font-family: Helvetica, sans-serif;\r\n}\r\n\r\n.hiprint-printElement-type .glyphicon {\r\n    margin-top: 5px;\r\n    margin-bottom: 10px;\r\n    font-size: 37px;\r\n}\r\n\r\n\r\n/*\r\n\r\n\r\n*/\r\n\r\n/*option css*/\r\n/*option css*/\r\n.hiprint-option-items {\r\n    font-size: .75rem;\r\n    padding: 10px 5px;\r\n    display: flex;\r\n    flex-wrap: wrap;\r\n    align-items: flex-end;\r\n    box-sizing: border-box;\r\n    width: 100%;\r\n}\r\n\r\n    .hiprint-option-items .hiprint-option-item {\r\n        box-sizing: border-box;\r\n        float: left;\r\n        width: 50%;\r\n        margin-bottom: 5px;\r\n        padding: 0 5px;\r\n    }\r\n\r\n    .hiprint-option-items .hiprint-option-item-row {\r\n        width: 100%;\r\n    }\r\n\r\n.hiprint-option-item-label {\r\n    margin: 5px 5px 3px 0;\r\n}\r\n\r\n.hiprint-option-items .hiprint-option-item-field input, .hiprint-option-items .hiprint-option-item-field select, .hiprint-option-items .hiprint-option-item-field textarea {\r\n    color: inherit;\r\n    background-color: transparent;\r\n    box-sizing: border-box;\r\n    width: 100%;\r\n    position: relative;\r\n    padding: 3px;\r\n    z-index: 1;\r\n    border: 1px solid rgb(169, 169, 169);\r\n    height: 19pt;\r\n}\r\n\r\n.hiprint-option-item-settingBtn {\r\n    height: 19pt;\r\n    line-height: 19pt;\r\n    font-size: 12px;\r\n    padding: 0 24px;\r\n    background: #00c1de;\r\n    border-color: transparent;\r\n    color: #fff;\r\n    display: inline-block;\r\n    margin: 5px;\r\n    font-weight: 400;\r\n    border: 1px solid transparent;\r\n    font-family: PingFangSC, helvetica neue, hiragino sans gb, arial, microsoft yahei ui, microsoft yahei, simsun, \"sans-serif\";\r\n    vertical-align: middle;\r\n    transition: .3s cubic-bezier(.4, 0, .2, 1);\r\n    transform: translateZ(0);\r\n}\r\n\r\n.hiprint-option-item-deleteBtn {\r\n    background: red;\r\n}\r\n\r\n.hiprint-option-items .minicolors {\r\n    position: relative;\r\n}\r\n\r\n.hiprint-option-items .minicolors-swatch {\r\n    position: absolute;\r\n    vertical-align: middle;\r\n    background-position: -80px 0;\r\n    cursor: text;\r\n    padding: 0;\r\n    margin: 0;\r\n    display: inline-block;\r\n}\r\n\r\n.hiprint-option-items .minicolors-swatch-color {\r\n    position: absolute;\r\n    top: 0;\r\n    left: 0;\r\n    right: 0;\r\n    bottom: 0;\r\n}\r\n\r\n.hiprint-option-items .minicolors input[type=hidden] + .minicolors-swatch {\r\n    width: 28px;\r\n    position: static;\r\n    cursor: pointer;\r\n}\r\n\r\n.hiprint-option-items .minicolors input[type=hidden][disabled] + .minicolors-swatch {\r\n    cursor: default;\r\n}\r\n\r\n/* Panel */\r\n.hiprint-option-items .minicolors-panel {\r\n    position: absolute;\r\n    width: 173px;\r\n    background: white;\r\n    border: solid 1px #CCC;\r\n    box-shadow: 0 0 20px rgba(0, 0, 0, .2);\r\n    z-index: 99999;\r\n    box-sizing: content-box;\r\n    display: none;\r\n}\r\n\r\n    .hiprint-option-items .minicolors-panel.minicolors-visible {\r\n        display: block;\r\n    }\r\n\r\n/* Panel positioning */\r\n.hiprint-option-items .minicolors-position-top .minicolors-panel {\r\n    top: -154px;\r\n}\r\n\r\n.hiprint-option-items .minicolors-position-right .minicolors-panel {\r\n    right: 0;\r\n}\r\n\r\n.hiprint-option-items .minicolors-position-bottom .minicolors-panel {\r\n    top: auto;\r\n}\r\n\r\n.hiprint-option-items .minicolors-position-left .minicolors-panel {\r\n    left: 0;\r\n}\r\n\r\n.hiprint-option-items .minicolors-with-opacity .minicolors-panel {\r\n    width: 194px;\r\n}\r\n\r\n.hiprint-option-items .minicolors .minicolors-grid {\r\n    position: relative;\r\n    top: 1px;\r\n    left: 1px; /* LTR */\r\n    width: 150px;\r\n    height: 150px;\r\n    margin-bottom: 2px;\r\n    background-position: -120px 0;\r\n    cursor: crosshair;\r\n}\r\n\r\n.hiprint-option-items .minicolors .minicolors-grid-inner {\r\n    position: absolute;\r\n    top: 0;\r\n    left: 0;\r\n    width: 150px;\r\n    height: 150px;\r\n}\r\n\r\n.hiprint-option-items .minicolors-slider-saturation .minicolors-grid {\r\n    background-position: -420px 0;\r\n}\r\n\r\n.hiprint-option-items .minicolors-slider-saturation .minicolors-grid-inner {\r\n    background-position: -270px 0;\r\n    background-image: inherit;\r\n}\r\n\r\n.hiprint-option-items .minicolors-slider-brightness .minicolors-grid {\r\n    background-position: -570px 0;\r\n}\r\n\r\n.hiprint-option-items .minicolors-slider-brightness .minicolors-grid-inner {\r\n    background-color: black;\r\n}\r\n\r\n.hiprint-option-items .minicolors-slider-wheel .minicolors-grid {\r\n    background-position: -720px 0;\r\n}\r\n\r\n.hiprint-option-items .minicolors-slider,\r\n.hiprint-option-items .minicolors-opacity-slider {\r\n    position: absolute;\r\n    top: 1px;\r\n    left: 152px; /* LTR */\r\n    width: 20px;\r\n    height: 150px;\r\n    background-color: white;\r\n    background-position: 0 0;\r\n    cursor: row-resize;\r\n}\r\n\r\n.hiprint-option-items .minicolors-slider-saturation .minicolors-slider {\r\n    background-position: -60px 0;\r\n}\r\n\r\n.hiprint-option-items .minicolors-slider-brightness .minicolors-slider {\r\n    background-position: -20px 0;\r\n}\r\n\r\n.hiprint-option-items .minicolors-slider-wheel .minicolors-slider {\r\n    background-position: -20px 0;\r\n}\r\n\r\n.hiprint-option-items .minicolors-opacity-slider {\r\n    left: 173px; /* LTR */\r\n    background-position: -40px 0;\r\n    display: none;\r\n}\r\n\r\n\r\n.hiprint-option-items .minicolors-with-opacity .minicolors-opacity-slider {\r\n    display: block;\r\n}\r\n\r\n/* Pickers */\r\n.hiprint-option-items .minicolors-grid .minicolors-picker {\r\n    position: absolute;\r\n    top: 70px;\r\n    left: 70px;\r\n    width: 12px;\r\n    height: 12px;\r\n    border: solid 1px black;\r\n    border-radius: 10px;\r\n    margin-top: -6px;\r\n    margin-left: -6px;\r\n    background: none;\r\n}\r\n\r\n    .hiprint-option-items .minicolors-grid .minicolors-picker > div {\r\n        position: absolute;\r\n        top: 0;\r\n        left: 0;\r\n        width: 8px;\r\n        height: 8px;\r\n        border-radius: 8px;\r\n        border: solid 2px white;\r\n        box-sizing: content-box;\r\n    }\r\n\r\n.hiprint-option-items .minicolors-picker {\r\n    position: absolute;\r\n    top: 0;\r\n    left: 0;\r\n    width: 18px;\r\n    height: 2px;\r\n    background: white;\r\n    border: solid 1px black;\r\n    margin-top: -2px;\r\n    box-sizing: content-box;\r\n}\r\n\r\n/* Swatches */\r\n.hiprint-option-items .minicolors-swatches,\r\n.hiprint-option-items .minicolors-swatches li {\r\n    margin: 5px 0 3px 5px; /* LTR */\r\n    padding: 0;\r\n    list-style: none;\r\n    overflow: hidden;\r\n}\r\n\r\n    .hiprint-option-items .minicolors-swatches .minicolors-swatch {\r\n        position: relative;\r\n        float: left; /* LTR */\r\n        cursor: pointer;\r\n        margin: 0 4px 0 0; /* LTR */\r\n    }\r\n\r\n\r\n.hiprint-option-items .minicolors-with-opacity .minicolors-swatches .minicolors-swatch {\r\n    margin-right: 7px; /* LTR */\r\n}\r\n\r\n\r\n.hiprint-option-items .minicolors-swatch.selected {\r\n    border-color: #000;\r\n}\r\n\r\n/* Inline controls */\r\n.hiprint-option-items .minicolors-inline {\r\n    display: inline-block;\r\n}\r\n\r\n    .hiprint-option-items .minicolors-inline .minicolors-input {\r\n        display: none !important;\r\n    }\r\n\r\n    .hiprint-option-items .minicolors-inline .minicolors-panel {\r\n        position: relative;\r\n        top: auto;\r\n        left: auto; /* LTR */\r\n        box-shadow: none;\r\n        z-index: auto;\r\n        display: inline-block;\r\n    }\r\n\r\n\r\n\r\n/* Bootstrap theme */\r\n.hiprint-option-items .minicolors-theme-bootstrap .minicolors-swatch {\r\n    z-index: 2;\r\n    top: 3px;\r\n    left: 3px;\r\n    width: 17px;\r\n    height: 17px;\r\n}\r\n\r\n.hiprint-option-items .minicolors-theme-bootstrap .minicolors-swatches .minicolors-swatch {\r\n    margin-bottom: 2px;\r\n    top: 0;\r\n    left: 0; /* LTR */\r\n    width: 20px;\r\n    height: 20px;\r\n}\r\n\r\n.hiprint-option-items .minicolors-theme-bootstrap .minicolors-swatch-color {\r\n    border-radius: inherit;\r\n}\r\n\r\n.hiprint-option-items .minicolors-theme-bootstrap.minicolors-position-right > .minicolors-swatch {\r\n    left: auto; /* LTR */\r\n    right: 3px; /* LTR */\r\n}\r\n\r\n.hiprint-option-items .minicolors-theme-bootstrap .minicolors-input {\r\n    float: none;\r\n    padding-left: 23px; /* LTR */\r\n}\r\n\r\n.hiprint-option-items .minicolors-theme-bootstrap.minicolors-position-right .minicolors-input {\r\n    padding-right: 44px; /* LTR */\r\n    padding-left: 12px; /* LTR */\r\n}\r\n\r\n.hiprint-option-items .minicolors-theme-bootstrap .minicolors-input.input-lg + .minicolors-swatch {\r\n    top: 4px;\r\n    left: 4px; /* LTR */\r\n    width: 37px;\r\n    height: 37px;\r\n    border-radius: 5px;\r\n}\r\n\r\n.hiprint-option-items .minicolors-theme-bootstrap .minicolors-input.input-sm + .minicolors-swatch {\r\n    width: 24px;\r\n    height: 24px;\r\n}\r\n\r\n.hiprint-option-items .minicolors-theme-bootstrap .minicolors-input.input-xs + .minicolors-swatch {\r\n    width: 18px;\r\n    height: 18px;\r\n}\r\n\r\n.hiprint-option-items .input-group .minicolors-theme-bootstrap:not(:first-child) .minicolors-input {\r\n    border-top-left-radius: 0; /* LTR */\r\n    border-bottom-left-radius: 0; /* LTR */\r\n}\r\n\r\n\r\n\r\n/*hitable reizer*/\r\n.hitable {\r\n}\r\n\r\n\r\n\r\n    .hitable .selected {\r\n        background: #3e66ad;\r\n    }\r\n\r\n\r\n    /*resizer*/\r\n    .hitable tr.resizerRow,\r\n    .hitable .resizerRow td {\r\n        border: 0pt dashed;\r\n        height: 0pt;\r\n        background: #fff;\r\n    }\r\n\r\n        .hitable tr.resizerRow + tr,\r\n        .hitable tr.resizerRow + tr td {\r\n            border-top: 0px !important;\r\n        }\r\n\r\n    .hitable td.resizerColumn {\r\n        border: 0pt dashed;\r\n        width: 0.000001px !important;\r\n        background: #fff;\r\n    }\r\n\r\n\r\n        .hitable td.resizerColumn + td {\r\n            border-left: 0px !important;\r\n        }\r\n\r\n\r\n/*GRIP*/\r\n\r\n.columngrips {\r\n    height: 0px;\r\n    position: absolute;\r\n}\r\n\r\n.columngrip {\r\n    margin-left: -5px;\r\n    position: absolute;\r\n    z-index: 5;\r\n    width: 10px;\r\n}\r\n\r\n    .columngrip .gripResizer {\r\n        position: absolute;\r\n        filter: alpha(opacity=1);\r\n        opacity: 0;\r\n        width: 10px;\r\n        height: 100%;\r\n        cursor: col-resize;\r\n        top: 0px;\r\n    }\r\n\r\n.columngripDraging {\r\n    border-left: 1px dotted black;\r\n}\r\n\r\n.rowgrips {\r\n    height: 0px;\r\n    width: 0px;\r\n    position: absolute;\r\n}\r\n\r\n.rowgrip {\r\n    margin-top: -5px;\r\n    position: absolute;\r\n    z-index: 5;\r\n    height: 10px;\r\n}\r\n\r\n    .rowgrip .gripResizer {\r\n        position: absolute;\r\n        filter: alpha(opacity=1);\r\n        opacity: 0;\r\n        height: 10px;\r\n        width: 100%;\r\n        cursor: row-resize;\r\n        left: 0px;\r\n    }\r\n\r\n.rowgripDraging {\r\n    border-top: 1px dotted black;\r\n}\r\n\r\n.hitable .hitable-editor-text {\r\n    border: 1px solid;\r\n    width: 95%;\r\n    height: 80%;\r\n}\r\n\r\n\r\n\r\n\r\n.hipanel-disable {\r\n    height: 0px;\r\n    display: block !important;\r\n    top: 8500px;\r\n    width: 0px;\r\n    overflow: hidden;\r\n    position: absolute;\r\n}\r\n\r\n.hiprint_rul_wrapper {\r\n    position: absolute;\r\n    height: 100%;\r\n    width: 100%;\r\n    overflow: hidden;\r\n    pointer-events: none;\r\n    border: 0;\r\n    border-top: 1px solid rgb(201, 190, 190);\r\n    border-left: 1px solid rgb(201, 190, 190);\r\n    padding-left: 15px;\r\n    margin: -16px\r\n}\r\n\r\n    .hiprint_rul_wrapper .h_img {\r\n        position: absolute;\r\n        top: 0px;\r\n        left: 15px;\r\n        width: 400mm;\r\n        height: 15px;\r\n    }\r\n\r\n    .hiprint_rul_wrapper .v_img {\r\n        width: 400mm;\r\n        transform: rotate(90deg);\r\n        transform-origin: 0 100%;\r\n        height: 15px;\r\n        position: absolute;\r\n        top: -2px;\r\n        left: 0px;\r\n    }\r\n\r\n/*hiprint-option-table*/\r\n\r\n.hiprint-option-table-selected-columns {\r\n    color: inherit;\r\n    background-color: transparent;\r\n    box-sizing: border-box;\r\n    width: 100%;\r\n    position: relative;\r\n    padding: 0px;\r\n    list-style: none;\r\n}\r\n\r\n    .hiprint-option-table-selected-columns .hiprint-option-table-selected-item {\r\n        color: inherit;\r\n        background-color: transparent;\r\n        box-sizing: border-box;\r\n        width: 100%;\r\n        padding: 0 3px;\r\n        border: 1px solid rgb(169, 169, 169);\r\n        line-height: 19pt;\r\n        margin: 3px 0;\r\n    }\r\n/*hi-pretty */\r\n.hi-pretty * {\r\n    box-sizing: border-box;\r\n}\r\n\r\n.hi-pretty input:not([type='checkbox']):not([type='radio']) {\r\n    display: none;\r\n}\r\n\r\n.hi-pretty {\r\n    position: relative;\r\n    display: inline-block;\r\n    margin-right: 1em;\r\n    white-space: nowrap;\r\n    line-height: 1;\r\n}\r\n\r\n    .hi-pretty input {\r\n        position: absolute;\r\n        left: 0;\r\n        top: 0;\r\n        min-width: 1em;\r\n        width: 100%;\r\n        height: 100%;\r\n        z-index: 2;\r\n        opacity: 0;\r\n        margin: 0;\r\n        padding: 0;\r\n        cursor: pointer;\r\n    }\r\n\r\n    .hi-pretty .state label {\r\n        position: initial;\r\n        display: inline-block;\r\n        font-weight: normal;\r\n        margin: 0;\r\n        text-indent: 1.5em;\r\n        min-width: calc(1em + 2px);\r\n    }\r\n\r\n        .hi-pretty .state label:before,\r\n        .hi-pretty .state label:after {\r\n            content: '';\r\n            width: calc(1em + 2px);\r\n            height: calc(1em + 2px);\r\n            display: block;\r\n            box-sizing: border-box;\r\n            border-radius: 0;\r\n            border: 1px solid transparent;\r\n            z-index: 0;\r\n            position: absolute;\r\n            left: 0;\r\n            top: calc((0% - (100% - 1em)) - 8%);\r\n            background-color: transparent;\r\n        }\r\n\r\n        .hi-pretty .state label:before {\r\n            border-color: #bdc3c7;\r\n        }\r\n\r\n    .hi-pretty .state.p-is-hover,\r\n    .hi-pretty .state.p-is-indeterminate {\r\n        display: none;\r\n    }\r\n\r\n\r\n    .hi-pretty.p-default.p-fill .state label:after {\r\n        -webkit-transform: scale(1);\r\n        -ms-transform: scale(1);\r\n        transform: scale(1);\r\n    }\r\n\r\n    .hi-pretty.p-default .state label:after {\r\n        -webkit-transform: scale(0.6);\r\n        -ms-transform: scale(0.6);\r\n        transform: scale(0.6);\r\n    }\r\n\r\n    .hi-pretty.p-default input:checked ~ .state label:after {\r\n        background-color: #bdc3c7 !important;\r\n    }\r\n\r\n    .hi-pretty.p-default.p-thick .state label:before,\r\n    .hi-pretty.p-default.p-thick .state label:after {\r\n        border-width: calc(1em / 7);\r\n    }\r\n\r\n    .hi-pretty.p-default.p-thick .state label:after {\r\n        -webkit-transform: scale(0.4) !important;\r\n        -ms-transform: scale(0.4) !important;\r\n        transform: scale(0.4) !important;\r\n    }\r\n", ""]);
+// Exports
+module.exports = exports;
+
+
+/***/ }),
+/* 4 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+/*
+  MIT License http://www.opensource.org/licenses/mit-license.php
+  Author Tobias Koppers @sokra
+*/
+// css base code, injected by the css-loader
+// eslint-disable-next-line func-names
+module.exports = function (useSourceMap) {
+  var list = []; // return the list of modules as css string
+
+  list.toString = function toString() {
+    return this.map(function (item) {
+      var content = cssWithMappingToString(item, useSourceMap);
+
+      if (item[2]) {
+        return "@media ".concat(item[2], " {").concat(content, "}");
+      }
+
+      return content;
+    }).join('');
+  }; // import a list of modules into the list
+  // eslint-disable-next-line func-names
+
+
+  list.i = function (modules, mediaQuery, dedupe) {
+    if (typeof modules === 'string') {
+      // eslint-disable-next-line no-param-reassign
+      modules = [[null, modules, '']];
+    }
+
+    var alreadyImportedModules = {};
+
+    if (dedupe) {
+      for (var i = 0; i < this.length; i++) {
+        // eslint-disable-next-line prefer-destructuring
+        var id = this[i][0];
+
+        if (id != null) {
+          alreadyImportedModules[id] = true;
+        }
+      }
+    }
+
+    for (var _i = 0; _i < modules.length; _i++) {
+      var item = [].concat(modules[_i]);
+
+      if (dedupe && alreadyImportedModules[item[0]]) {
+        // eslint-disable-next-line no-continue
+        continue;
+      }
+
+      if (mediaQuery) {
+        if (!item[2]) {
+          item[2] = mediaQuery;
+        } else {
+          item[2] = "".concat(mediaQuery, " and ").concat(item[2]);
+        }
+      }
+
+      list.push(item);
+    }
+  };
+
+  return list;
+};
+
+function cssWithMappingToString(item, useSourceMap) {
+  var content = item[1] || ''; // eslint-disable-next-line prefer-destructuring
+
+  var cssMapping = item[3];
+
+  if (!cssMapping) {
+    return content;
+  }
+
+  if (useSourceMap && typeof btoa === 'function') {
+    var sourceMapping = toComment(cssMapping);
+    var sourceURLs = cssMapping.sources.map(function (source) {
+      return "/*# sourceURL=".concat(cssMapping.sourceRoot || '').concat(source, " */");
+    });
+    return [content].concat(sourceURLs).concat([sourceMapping]).join('\n');
+  }
+
+  return [content].join('\n');
+} // Adapted from convert-source-map (MIT)
+
+
+function toComment(sourceMap) {
+  // eslint-disable-next-line no-undef
+  var base64 = btoa(unescape(encodeURIComponent(JSON.stringify(sourceMap))));
+  var data = "sourceMappingURL=data:application/json;charset=utf-8;base64,".concat(base64);
+  return "/*# ".concat(data, " */");
+}
+
+/***/ }),
+/* 5 */
+/***/ (function(module, exports, __webpack_require__) {
+
+var api = __webpack_require__(2);
+            var content = __webpack_require__(6);
+
+            content = content.__esModule ? content.default : content;
+
+            if (typeof content === 'string') {
+              content = [[module.i, content, '']];
+            }
+
+var options = {};
+
+options.insert = "head";
+options.singleton = false;
+
+var update = api(content, options);
+
+
+
+module.exports = content.locals || {};
+
+/***/ }),
+/* 6 */
+/***/ (function(module, exports, __webpack_require__) {
+
+// Imports
+var ___CSS_LOADER_API_IMPORT___ = __webpack_require__(4);
+exports = ___CSS_LOADER_API_IMPORT___(false);
+// Module
+exports.push([module.i, "\r\n@media print {\r\n    body {\r\n        margin: 0px;\r\n        padding: 0px;\r\n    }\r\n}\r\n\r\n@page {\r\n    margin: 0;\r\n}\r\n\r\n.hiprint-printPaper * {\r\n    box-sizing: border-box;\r\n    -moz-box-sizing: border-box; /* Firefox */\r\n    -webkit-box-sizing: border-box; /* Safari */\r\n   \r\n}\r\n\r\n    .hiprint-printPaper *:focus {\r\n        outline: -webkit-focus-ring-color auto 0px;\r\n    }\r\n\r\n\r\n.hiprint-page-break-avoid {\r\n    page-break-after: avoid;\r\n}\r\n.hiprint-printPaper {\r\n    position: relative;\r\n    padding: 0 0 0 0;\r\n    page-break-after: always;\r\n    overflow-x: hidden;\r\n    overflow: hidden;\r\n}\r\n    .hiprint-printPaper .hiprint-printPaper-content {\r\n        position: relative;\r\n    }\r\n.hiprint-printPaper.design {\r\n    overflow: visible;\r\n}\r\n\r\n\r\n\r\n.hiprint-printTemplate .hiprint-printPanel {\r\n    page-break-after: always;\r\n}\r\n\r\n.hiprint-printPaper, hiprint-printPanel {\r\n    box-sizing: border-box;\r\n    border: 0px;\r\n}\r\n\r\n.hiprint-printPanel .hiprint-printPaper:last-child {\r\n    page-break-after: avoid;\r\n}\r\n\r\n.hiprint-printTemplate .hiprint-printPanel:last-child {\r\n    page-break-after: avoid;\r\n}\r\n\r\n.hiprint-printPaper .hideheaderLinetarget {\r\n    border-top: 0px dashed rgb(201, 190, 190) !important;\r\n}\r\n\r\n.hiprint-printPaper .hidefooterLinetarget {\r\n    border-top: 0px dashed rgb(201, 190, 190) !important;\r\n}\r\n\r\n.hiprint-printPaper.design {\r\n    border: 1px dashed rgba(170,170,170,0.7);\r\n}\r\n\r\n.design .hiprint-printElement-table-content, .design .hiprint-printElement-longText-content {\r\n    overflow: hidden;\r\n    box-sizing: border-box;\r\n}\r\n\r\n.design .resize-panel {\r\n    box-sizing: border-box;\r\n    border: 1px dotted;\r\n}\r\n\r\n.hiprint-printElement-text {\r\n    background-color: transparent;\r\n    background-repeat: repeat;\r\n    padding: 0 0 0 0;\r\n    border: 0.75pt none rgb(0,0,0);\r\n    direction: ltr;\r\n    font-family: 'SimSun';\r\n    font-size: 9pt;\r\n    font-style: normal;\r\n    font-weight: normal;\r\n    padding-bottom: 0pt;\r\n    padding-left: 0pt;\r\n    padding-right: 0pt;\r\n    padding-top: 0pt;\r\n    text-align: left;\r\n    text-decoration: none;\r\n    line-height: 9.75pt;\r\n    box-sizing: border-box;\r\n    word-wrap: break-word;\r\n    word-break: break-all;\r\n}\r\n\r\n.design .hiprint-printElement-text-content {\r\n    border: 1px dashed rgb(206, 188, 188);\r\n    box-sizing: border-box;\r\n}\r\n\r\n.hiprint-printElement-longText {\r\n    background-color: transparent;\r\n    background-repeat: repeat;\r\n    border: 0.75pt none rgb(0,0,0);\r\n    direction: ltr;\r\n    font-family: 'SimSun';\r\n    font-size: 9pt;\r\n    font-style: normal;\r\n    font-weight: normal;\r\n    padding-bottom: 0pt;\r\n    padding-left: 0pt;\r\n    padding-right: 0pt;\r\n    padding-top: 0pt;\r\n    text-align: left;\r\n    text-decoration: none;\r\n    line-height: 9.75pt;\r\n    box-sizing: border-box;\r\n    word-wrap: break-word;\r\n    word-break: break-all;\r\n    /*white-space: pre-wrap*/\r\n}\r\n\r\n\r\n\r\n.hiprint-printElement-table {\r\n    background-color: transparent;\r\n    background-repeat: repeat;\r\n    color: rgb(0,0,0);\r\n    border-color: rgb(0,0,0);\r\n    border-style: none;\r\n    direction: ltr;\r\n    font-family: 'SimSun';\r\n    font-size: 9pt;\r\n    font-style: normal;\r\n    font-weight: normal;\r\n    padding-bottom: 0pt;\r\n    padding-left: 0pt;\r\n    padding-right: 0pt;\r\n    padding-top: 0pt;\r\n    text-align: left;\r\n    text-decoration: none;\r\n    padding: 0 0 0 0;\r\n    box-sizing: border-box;\r\n    line-height: 9.75pt;\r\n}\r\n\r\n    .hiprint-printElement-table thead {\r\n        background: #e8e8e8;\r\n        font-weight: 700;\r\n    }\r\n\r\n.hiprint-printElement-tableTarget, .hiprint-printElement-tableTarget tr, .hiprint-printElement-tableTarget td {\r\n    border-color: rgb(0,0,0);\r\n    border-style: none;\r\n    border: 1px solid rgb(0,0,0);\r\n    font-weight: normal;\r\n    direction: ltr;\r\n    padding-bottom: 0pt;\r\n    padding-left: 0pt;\r\n    padding-right: 0pt;\r\n    padding-top: 0pt;\r\n    text-decoration: none;\r\n    vertical-align: middle;\r\n    box-sizing: border-box;\r\n    word-wrap: break-word;\r\n    word-break: break-all;\r\n    /*line-height: 9.75pt;\r\n    font-size: 9pt;*/\r\n}\r\n\r\n    /*.hiprint-printElement-tableTarget tr,*/\r\n    .hiprint-printElement-tableTarget td {\r\n        height: 18pt;\r\n    }\r\n\r\n.hiprint-printPaper .hiprint-paperNumber {\r\n    font-size: 9pt;\r\n}\r\n\r\n.design .hiprint-printElement-table-handle {\r\n    position: absolute;\r\n    height: 21pt;\r\n    width: 21pt;\r\n    background: red;\r\n    z-index:1;\r\n}\r\n\r\n.hiprint-printPaper .hiprint-paperNumber-disabled {\r\n    float: right !important;\r\n    right: 0 !important;\r\n    color: gainsboro !important;\r\n}\r\n\r\n.hiprint-printElement-vline, .hiprint-printElement-hline {\r\n    border: 0px none rgb(0,0,0);\r\n    \r\n}\r\n.hiprint-printElement-vline {\r\n    border-left: 0.75pt solid #000;\r\n    border-right: 0px none rgb(0,0,0) !important;\r\n    border-bottom: 0px none rgb(0,0,0) !important;\r\n    border-top: 0px none rgb(0,0,0) !important;\r\n}\r\n\r\n.hiprint-printElement-hline {\r\n    border-top: 0.75pt solid #000;\r\n    border-right: 0px none rgb(0,0,0) !important;\r\n    border-bottom: 0px none rgb(0,0,0) !important;\r\n    border-left: 0px none rgb(0,0,0) !important;\r\n}\r\n\r\n.hiprint-printElement-oval, .hiprint-printElement-rect {\r\n    border: 0.75pt solid #000;\r\n}\r\n\r\n.hiprint-text-content-middle {\r\n    display:table;\r\n}\r\n.hiprint-text-content-middle>div {\r\n    display: table-cell;\r\n    vertical-align:middle\r\n}\r\n\r\n.hiprint-text-content-bottom {\r\n    display: table;\r\n}\r\n\r\n    .hiprint-text-content-bottom > div {\r\n        display: table-cell;\r\n        vertical-align: bottom\r\n    }\r\n\r\n/*hi-grid-row */\r\n.hi-grid-row {\r\n    position: relative;\r\n    height: auto;\r\n    margin-right: 0;\r\n    margin-left: 0;\r\n    zoom: 1;\r\n    display: block;\r\n    box-sizing: border-box;\r\n}\r\n\r\n    .hi-grid-row::after, .hi-grid-row::before {\r\n        display: table;\r\n        content: '';\r\n        box-sizing: border-box;\r\n    }\r\n\r\n.hi-grid-col {\r\n    display: block;\r\n    box-sizing: border-box;\r\n    position: relative;\r\n    float: left;\r\n    flex: 0 0 auto;\r\n}\r\n\r\n.table-grid-row {\r\n    margin-left: -0pt;\r\n    margin-right: -0pt;\r\n}\r\n\r\n.tableGridColumnsGutterRow {\r\n    padding-left: 0pt;\r\n    padding-right: 0pt;\r\n}\r\n.hiprint-gridColumnsFooter {\r\n    text-align: left;\r\n    clear: both;\r\n}", ""]);
+// Exports
+module.exports = exports;
+
+
+/***/ }),
+/* 7 */
 /***/ (function(module, __webpack_exports__, __webpack_require__) {
 
 "use strict";
 __webpack_require__.r(__webpack_exports__);
-/* harmony import */ var jquery__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(4);
+/* harmony import */ var jquery__WEBPACK_IMPORTED_MODULE_0__ = __webpack_require__(8);
 /* harmony import */ var jquery__WEBPACK_IMPORTED_MODULE_0___default = /*#__PURE__*/__webpack_require__.n(jquery__WEBPACK_IMPORTED_MODULE_0__);
-/* harmony import */ var jsbarcode__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(5);
+/* harmony import */ var jsbarcode__WEBPACK_IMPORTED_MODULE_1__ = __webpack_require__(9);
 /* harmony import */ var jsbarcode__WEBPACK_IMPORTED_MODULE_1___default = /*#__PURE__*/__webpack_require__.n(jsbarcode__WEBPACK_IMPORTED_MODULE_1__);
-/* harmony import */ var qrcodejs2__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(55);
+/* harmony import */ var qrcodejs2__WEBPACK_IMPORTED_MODULE_2__ = __webpack_require__(59);
 /* harmony import */ var qrcodejs2__WEBPACK_IMPORTED_MODULE_2___default = /*#__PURE__*/__webpack_require__.n(qrcodejs2__WEBPACK_IMPORTED_MODULE_2__);
 /**
  * jQuery Hiprint 2.5.3
@@ -7703,7 +8140,7 @@ var hiprint = function (t) {
 /* harmony default export */ __webpack_exports__["default"] = (hiprint);
 
 /***/ }),
-/* 4 */
+/* 8 */
 /***/ (function(module, exports, __webpack_require__) {
 
 var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/*!
@@ -18074,43 +18511,43 @@ return jQuery;
 
 
 /***/ }),
-/* 5 */
+/* 9 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
 
 
-var _barcodes = __webpack_require__(6);
+var _barcodes = __webpack_require__(10);
 
 var _barcodes2 = _interopRequireDefault(_barcodes);
 
-var _merge = __webpack_require__(41);
+var _merge = __webpack_require__(45);
 
 var _merge2 = _interopRequireDefault(_merge);
 
-var _linearizeEncodings = __webpack_require__(42);
+var _linearizeEncodings = __webpack_require__(46);
 
 var _linearizeEncodings2 = _interopRequireDefault(_linearizeEncodings);
 
-var _fixOptions = __webpack_require__(43);
+var _fixOptions = __webpack_require__(47);
 
 var _fixOptions2 = _interopRequireDefault(_fixOptions);
 
-var _getRenderProperties = __webpack_require__(44);
+var _getRenderProperties = __webpack_require__(48);
 
 var _getRenderProperties2 = _interopRequireDefault(_getRenderProperties);
 
-var _optionsFromStrings = __webpack_require__(46);
+var _optionsFromStrings = __webpack_require__(50);
 
 var _optionsFromStrings2 = _interopRequireDefault(_optionsFromStrings);
 
-var _ErrorHandler = __webpack_require__(54);
+var _ErrorHandler = __webpack_require__(58);
 
 var _ErrorHandler2 = _interopRequireDefault(_ErrorHandler);
 
-var _exceptions = __webpack_require__(53);
+var _exceptions = __webpack_require__(57);
 
-var _defaults = __webpack_require__(47);
+var _defaults = __webpack_require__(51);
 
 var _defaults2 = _interopRequireDefault(_defaults);
 
@@ -18332,7 +18769,7 @@ if (typeof jQuery !== 'undefined') {
 module.exports = JsBarcode;
 
 /***/ }),
-/* 6 */
+/* 10 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -18342,21 +18779,21 @@ Object.defineProperty(exports, "__esModule", {
 	value: true
 });
 
-var _CODE = __webpack_require__(7);
+var _CODE = __webpack_require__(11);
 
-var _CODE2 = __webpack_require__(9);
+var _CODE2 = __webpack_require__(13);
 
-var _EAN_UPC = __webpack_require__(17);
+var _EAN_UPC = __webpack_require__(21);
 
-var _ITF = __webpack_require__(27);
+var _ITF = __webpack_require__(31);
 
-var _MSI = __webpack_require__(31);
+var _MSI = __webpack_require__(35);
 
-var _pharmacode = __webpack_require__(38);
+var _pharmacode = __webpack_require__(42);
 
-var _codabar = __webpack_require__(39);
+var _codabar = __webpack_require__(43);
 
-var _GenericBarcode = __webpack_require__(40);
+var _GenericBarcode = __webpack_require__(44);
 
 exports.default = {
 	CODE39: _CODE.CODE39,
@@ -18371,7 +18808,7 @@ exports.default = {
 };
 
 /***/ }),
-/* 7 */
+/* 11 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -18384,7 +18821,7 @@ exports.CODE39 = undefined;
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-var _Barcode2 = __webpack_require__(8);
+var _Barcode2 = __webpack_require__(12);
 
 var _Barcode3 = _interopRequireDefault(_Barcode2);
 
@@ -18482,7 +18919,7 @@ function mod43checksum(data) {
 exports.CODE39 = CODE39;
 
 /***/ }),
-/* 8 */
+/* 12 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -18505,7 +18942,7 @@ var Barcode = function Barcode(data, options) {
 exports.default = Barcode;
 
 /***/ }),
-/* 9 */
+/* 13 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -18516,19 +18953,19 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.CODE128C = exports.CODE128B = exports.CODE128A = exports.CODE128 = undefined;
 
-var _CODE128_AUTO = __webpack_require__(10);
+var _CODE128_AUTO = __webpack_require__(14);
 
 var _CODE128_AUTO2 = _interopRequireDefault(_CODE128_AUTO);
 
-var _CODE128A = __webpack_require__(14);
+var _CODE128A = __webpack_require__(18);
 
 var _CODE128A2 = _interopRequireDefault(_CODE128A);
 
-var _CODE128B = __webpack_require__(15);
+var _CODE128B = __webpack_require__(19);
 
 var _CODE128B2 = _interopRequireDefault(_CODE128B);
 
-var _CODE128C = __webpack_require__(16);
+var _CODE128C = __webpack_require__(20);
 
 var _CODE128C2 = _interopRequireDefault(_CODE128C);
 
@@ -18540,7 +18977,7 @@ exports.CODE128B = _CODE128B2.default;
 exports.CODE128C = _CODE128C2.default;
 
 /***/ }),
-/* 10 */
+/* 14 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -18550,11 +18987,11 @@ Object.defineProperty(exports, "__esModule", {
 	value: true
 });
 
-var _CODE2 = __webpack_require__(11);
+var _CODE2 = __webpack_require__(15);
 
 var _CODE3 = _interopRequireDefault(_CODE2);
 
-var _auto = __webpack_require__(13);
+var _auto = __webpack_require__(17);
 
 var _auto2 = _interopRequireDefault(_auto);
 
@@ -18587,7 +19024,7 @@ var CODE128AUTO = function (_CODE) {
 exports.default = CODE128AUTO;
 
 /***/ }),
-/* 11 */
+/* 15 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -18599,11 +19036,11 @@ Object.defineProperty(exports, "__esModule", {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-var _Barcode2 = __webpack_require__(8);
+var _Barcode2 = __webpack_require__(12);
 
 var _Barcode3 = _interopRequireDefault(_Barcode2);
 
-var _constants = __webpack_require__(12);
+var _constants = __webpack_require__(16);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -18760,7 +19197,7 @@ var CODE128 = function (_Barcode) {
 exports.default = CODE128;
 
 /***/ }),
-/* 12 */
+/* 16 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -18820,7 +19257,7 @@ var C_CHARS = exports.C_CHARS = "(\xCF*[0-9]{2}\xCF*)";
 var BARS = exports.BARS = [11011001100, 11001101100, 11001100110, 10010011000, 10010001100, 10001001100, 10011001000, 10011000100, 10001100100, 11001001000, 11001000100, 11000100100, 10110011100, 10011011100, 10011001110, 10111001100, 10011101100, 10011100110, 11001110010, 11001011100, 11001001110, 11011100100, 11001110100, 11101101110, 11101001100, 11100101100, 11100100110, 11101100100, 11100110100, 11100110010, 11011011000, 11011000110, 11000110110, 10100011000, 10001011000, 10001000110, 10110001000, 10001101000, 10001100010, 11010001000, 11000101000, 11000100010, 10110111000, 10110001110, 10001101110, 10111011000, 10111000110, 10001110110, 11101110110, 11010001110, 11000101110, 11011101000, 11011100010, 11011101110, 11101011000, 11101000110, 11100010110, 11101101000, 11101100010, 11100011010, 11101111010, 11001000010, 11110001010, 10100110000, 10100001100, 10010110000, 10010000110, 10000101100, 10000100110, 10110010000, 10110000100, 10011010000, 10011000010, 10000110100, 10000110010, 11000010010, 11001010000, 11110111010, 11000010100, 10001111010, 10100111100, 10010111100, 10010011110, 10111100100, 10011110100, 10011110010, 11110100100, 11110010100, 11110010010, 11011011110, 11011110110, 11110110110, 10101111000, 10100011110, 10001011110, 10111101000, 10111100010, 11110101000, 11110100010, 10111011110, 10111101110, 11101011110, 11110101110, 11010000100, 11010010000, 11010011100, 1100011101011];
 
 /***/ }),
-/* 13 */
+/* 17 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -18830,7 +19267,7 @@ Object.defineProperty(exports, "__esModule", {
 	value: true
 });
 
-var _constants = __webpack_require__(12);
+var _constants = __webpack_require__(16);
 
 // Match Set functions
 var matchSetALength = function matchSetALength(string) {
@@ -18899,7 +19336,7 @@ exports.default = function (string) {
 };
 
 /***/ }),
-/* 14 */
+/* 18 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -18911,11 +19348,11 @@ Object.defineProperty(exports, "__esModule", {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-var _CODE2 = __webpack_require__(11);
+var _CODE2 = __webpack_require__(15);
 
 var _CODE3 = _interopRequireDefault(_CODE2);
 
-var _constants = __webpack_require__(12);
+var _constants = __webpack_require__(16);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -18947,7 +19384,7 @@ var CODE128A = function (_CODE) {
 exports.default = CODE128A;
 
 /***/ }),
-/* 15 */
+/* 19 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -18959,11 +19396,11 @@ Object.defineProperty(exports, "__esModule", {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-var _CODE2 = __webpack_require__(11);
+var _CODE2 = __webpack_require__(15);
 
 var _CODE3 = _interopRequireDefault(_CODE2);
 
-var _constants = __webpack_require__(12);
+var _constants = __webpack_require__(16);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -18995,7 +19432,7 @@ var CODE128B = function (_CODE) {
 exports.default = CODE128B;
 
 /***/ }),
-/* 16 */
+/* 20 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -19007,11 +19444,11 @@ Object.defineProperty(exports, "__esModule", {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-var _CODE2 = __webpack_require__(11);
+var _CODE2 = __webpack_require__(15);
 
 var _CODE3 = _interopRequireDefault(_CODE2);
 
-var _constants = __webpack_require__(12);
+var _constants = __webpack_require__(16);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -19043,7 +19480,7 @@ var CODE128C = function (_CODE) {
 exports.default = CODE128C;
 
 /***/ }),
-/* 17 */
+/* 21 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -19054,27 +19491,27 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.UPCE = exports.UPC = exports.EAN2 = exports.EAN5 = exports.EAN8 = exports.EAN13 = undefined;
 
-var _EAN = __webpack_require__(18);
+var _EAN = __webpack_require__(22);
 
 var _EAN2 = _interopRequireDefault(_EAN);
 
-var _EAN3 = __webpack_require__(22);
+var _EAN3 = __webpack_require__(26);
 
 var _EAN4 = _interopRequireDefault(_EAN3);
 
-var _EAN5 = __webpack_require__(23);
+var _EAN5 = __webpack_require__(27);
 
 var _EAN6 = _interopRequireDefault(_EAN5);
 
-var _EAN7 = __webpack_require__(24);
+var _EAN7 = __webpack_require__(28);
 
 var _EAN8 = _interopRequireDefault(_EAN7);
 
-var _UPC = __webpack_require__(25);
+var _UPC = __webpack_require__(29);
 
 var _UPC2 = _interopRequireDefault(_UPC);
 
-var _UPCE = __webpack_require__(26);
+var _UPCE = __webpack_require__(30);
 
 var _UPCE2 = _interopRequireDefault(_UPCE);
 
@@ -19088,7 +19525,7 @@ exports.UPC = _UPC2.default;
 exports.UPCE = _UPCE2.default;
 
 /***/ }),
-/* 18 */
+/* 22 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -19102,9 +19539,9 @@ var _createClass = function () { function defineProperties(target, props) { for 
 
 var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
 
-var _constants = __webpack_require__(19);
+var _constants = __webpack_require__(23);
 
-var _EAN2 = __webpack_require__(20);
+var _EAN2 = __webpack_require__(24);
 
 var _EAN3 = _interopRequireDefault(_EAN2);
 
@@ -19213,7 +19650,7 @@ var EAN13 = function (_EAN) {
 exports.default = EAN13;
 
 /***/ }),
-/* 19 */
+/* 23 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -19249,7 +19686,7 @@ var EAN5_STRUCTURE = exports.EAN5_STRUCTURE = ['GGLLL', 'GLGLL', 'GLLGL', 'GLLLG
 var EAN13_STRUCTURE = exports.EAN13_STRUCTURE = ['LLLLLL', 'LLGLGG', 'LLGGLG', 'LLGGGL', 'LGLLGG', 'LGGLLG', 'LGGGLL', 'LGLGLG', 'LGLGGL', 'LGGLGL'];
 
 /***/ }),
-/* 20 */
+/* 24 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -19261,13 +19698,13 @@ Object.defineProperty(exports, "__esModule", {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-var _constants = __webpack_require__(19);
+var _constants = __webpack_require__(23);
 
-var _encoder = __webpack_require__(21);
+var _encoder = __webpack_require__(25);
 
 var _encoder2 = _interopRequireDefault(_encoder);
 
-var _Barcode2 = __webpack_require__(8);
+var _Barcode2 = __webpack_require__(12);
 
 var _Barcode3 = _interopRequireDefault(_Barcode2);
 
@@ -19347,7 +19784,7 @@ var EAN = function (_Barcode) {
 exports.default = EAN;
 
 /***/ }),
-/* 21 */
+/* 25 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -19357,7 +19794,7 @@ Object.defineProperty(exports, "__esModule", {
 	value: true
 });
 
-var _constants = __webpack_require__(19);
+var _constants = __webpack_require__(23);
 
 // Encode data string
 var encode = function encode(data, structure, separator) {
@@ -19380,7 +19817,7 @@ var encode = function encode(data, structure, separator) {
 exports.default = encode;
 
 /***/ }),
-/* 22 */
+/* 26 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -19394,7 +19831,7 @@ var _createClass = function () { function defineProperties(target, props) { for 
 
 var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
 
-var _EAN2 = __webpack_require__(20);
+var _EAN2 = __webpack_require__(24);
 
 var _EAN3 = _interopRequireDefault(_EAN2);
 
@@ -19467,7 +19904,7 @@ var EAN8 = function (_EAN) {
 exports.default = EAN8;
 
 /***/ }),
-/* 23 */
+/* 27 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -19479,13 +19916,13 @@ Object.defineProperty(exports, "__esModule", {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-var _constants = __webpack_require__(19);
+var _constants = __webpack_require__(23);
 
-var _encoder = __webpack_require__(21);
+var _encoder = __webpack_require__(25);
 
 var _encoder2 = _interopRequireDefault(_encoder);
 
-var _Barcode2 = __webpack_require__(8);
+var _Barcode2 = __webpack_require__(12);
 
 var _Barcode3 = _interopRequireDefault(_Barcode2);
 
@@ -19538,7 +19975,7 @@ var EAN5 = function (_Barcode) {
 exports.default = EAN5;
 
 /***/ }),
-/* 24 */
+/* 28 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -19550,13 +19987,13 @@ Object.defineProperty(exports, "__esModule", {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-var _constants = __webpack_require__(19);
+var _constants = __webpack_require__(23);
 
-var _encoder = __webpack_require__(21);
+var _encoder = __webpack_require__(25);
 
 var _encoder2 = _interopRequireDefault(_encoder);
 
-var _Barcode2 = __webpack_require__(8);
+var _Barcode2 = __webpack_require__(12);
 
 var _Barcode3 = _interopRequireDefault(_Barcode2);
 
@@ -19602,7 +20039,7 @@ var EAN2 = function (_Barcode) {
 exports.default = EAN2;
 
 /***/ }),
-/* 25 */
+/* 29 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -19616,11 +20053,11 @@ var _createClass = function () { function defineProperties(target, props) { for 
 
 exports.checksum = checksum;
 
-var _encoder = __webpack_require__(21);
+var _encoder = __webpack_require__(25);
 
 var _encoder2 = _interopRequireDefault(_encoder);
 
-var _Barcode2 = __webpack_require__(8);
+var _Barcode2 = __webpack_require__(12);
 
 var _Barcode3 = _interopRequireDefault(_Barcode2);
 
@@ -19773,7 +20210,7 @@ function checksum(number) {
 exports.default = UPC;
 
 /***/ }),
-/* 26 */
+/* 30 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -19785,15 +20222,15 @@ Object.defineProperty(exports, "__esModule", {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-var _encoder = __webpack_require__(21);
+var _encoder = __webpack_require__(25);
 
 var _encoder2 = _interopRequireDefault(_encoder);
 
-var _Barcode2 = __webpack_require__(8);
+var _Barcode2 = __webpack_require__(12);
 
 var _Barcode3 = _interopRequireDefault(_Barcode2);
 
-var _UPC = __webpack_require__(25);
+var _UPC = __webpack_require__(29);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -19964,7 +20401,7 @@ function expandToUPCA(middleDigits, numberSystem) {
 exports.default = UPCE;
 
 /***/ }),
-/* 27 */
+/* 31 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -19975,11 +20412,11 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.ITF14 = exports.ITF = undefined;
 
-var _ITF = __webpack_require__(28);
+var _ITF = __webpack_require__(32);
 
 var _ITF2 = _interopRequireDefault(_ITF);
 
-var _ITF3 = __webpack_require__(30);
+var _ITF3 = __webpack_require__(34);
 
 var _ITF4 = _interopRequireDefault(_ITF3);
 
@@ -19989,7 +20426,7 @@ exports.ITF = _ITF2.default;
 exports.ITF14 = _ITF4.default;
 
 /***/ }),
-/* 28 */
+/* 32 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20001,9 +20438,9 @@ Object.defineProperty(exports, "__esModule", {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-var _constants = __webpack_require__(29);
+var _constants = __webpack_require__(33);
 
-var _Barcode2 = __webpack_require__(8);
+var _Barcode2 = __webpack_require__(12);
 
 var _Barcode3 = _interopRequireDefault(_Barcode2);
 
@@ -20064,7 +20501,7 @@ var ITF = function (_Barcode) {
 exports.default = ITF;
 
 /***/ }),
-/* 29 */
+/* 33 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20079,7 +20516,7 @@ var END_BIN = exports.END_BIN = '11101';
 var BINARIES = exports.BINARIES = ['00110', '10001', '01001', '11000', '00101', '10100', '01100', '00011', '10010', '01010'];
 
 /***/ }),
-/* 30 */
+/* 34 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20091,7 +20528,7 @@ Object.defineProperty(exports, "__esModule", {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-var _ITF2 = __webpack_require__(28);
+var _ITF2 = __webpack_require__(32);
 
 var _ITF3 = _interopRequireDefault(_ITF2);
 
@@ -20140,7 +20577,7 @@ var ITF14 = function (_ITF) {
 exports.default = ITF14;
 
 /***/ }),
-/* 31 */
+/* 35 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20151,23 +20588,23 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.MSI1110 = exports.MSI1010 = exports.MSI11 = exports.MSI10 = exports.MSI = undefined;
 
-var _MSI = __webpack_require__(32);
+var _MSI = __webpack_require__(36);
 
 var _MSI2 = _interopRequireDefault(_MSI);
 
-var _MSI3 = __webpack_require__(33);
+var _MSI3 = __webpack_require__(37);
 
 var _MSI4 = _interopRequireDefault(_MSI3);
 
-var _MSI5 = __webpack_require__(35);
+var _MSI5 = __webpack_require__(39);
 
 var _MSI6 = _interopRequireDefault(_MSI5);
 
-var _MSI7 = __webpack_require__(36);
+var _MSI7 = __webpack_require__(40);
 
 var _MSI8 = _interopRequireDefault(_MSI7);
 
-var _MSI9 = __webpack_require__(37);
+var _MSI9 = __webpack_require__(41);
 
 var _MSI10 = _interopRequireDefault(_MSI9);
 
@@ -20180,7 +20617,7 @@ exports.MSI1010 = _MSI8.default;
 exports.MSI1110 = _MSI10.default;
 
 /***/ }),
-/* 32 */
+/* 36 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20192,7 +20629,7 @@ Object.defineProperty(exports, "__esModule", {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-var _Barcode2 = __webpack_require__(8);
+var _Barcode2 = __webpack_require__(12);
 
 var _Barcode3 = _interopRequireDefault(_Barcode2);
 
@@ -20260,7 +20697,7 @@ function addZeroes(number, n) {
 exports.default = MSI;
 
 /***/ }),
-/* 33 */
+/* 37 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20270,11 +20707,11 @@ Object.defineProperty(exports, "__esModule", {
 	value: true
 });
 
-var _MSI2 = __webpack_require__(32);
+var _MSI2 = __webpack_require__(36);
 
 var _MSI3 = _interopRequireDefault(_MSI2);
 
-var _checksums = __webpack_require__(34);
+var _checksums = __webpack_require__(38);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -20299,7 +20736,7 @@ var MSI10 = function (_MSI) {
 exports.default = MSI10;
 
 /***/ }),
-/* 34 */
+/* 38 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20334,7 +20771,7 @@ function mod11(number) {
 }
 
 /***/ }),
-/* 35 */
+/* 39 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20344,11 +20781,11 @@ Object.defineProperty(exports, "__esModule", {
 	value: true
 });
 
-var _MSI2 = __webpack_require__(32);
+var _MSI2 = __webpack_require__(36);
 
 var _MSI3 = _interopRequireDefault(_MSI2);
 
-var _checksums = __webpack_require__(34);
+var _checksums = __webpack_require__(38);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -20373,7 +20810,7 @@ var MSI11 = function (_MSI) {
 exports.default = MSI11;
 
 /***/ }),
-/* 36 */
+/* 40 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20383,11 +20820,11 @@ Object.defineProperty(exports, "__esModule", {
 	value: true
 });
 
-var _MSI2 = __webpack_require__(32);
+var _MSI2 = __webpack_require__(36);
 
 var _MSI3 = _interopRequireDefault(_MSI2);
 
-var _checksums = __webpack_require__(34);
+var _checksums = __webpack_require__(38);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -20414,7 +20851,7 @@ var MSI1010 = function (_MSI) {
 exports.default = MSI1010;
 
 /***/ }),
-/* 37 */
+/* 41 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20424,11 +20861,11 @@ Object.defineProperty(exports, "__esModule", {
 	value: true
 });
 
-var _MSI2 = __webpack_require__(32);
+var _MSI2 = __webpack_require__(36);
 
 var _MSI3 = _interopRequireDefault(_MSI2);
 
-var _checksums = __webpack_require__(34);
+var _checksums = __webpack_require__(38);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -20455,7 +20892,7 @@ var MSI1110 = function (_MSI) {
 exports.default = MSI1110;
 
 /***/ }),
-/* 38 */
+/* 42 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20468,7 +20905,7 @@ exports.pharmacode = undefined;
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-var _Barcode2 = __webpack_require__(8);
+var _Barcode2 = __webpack_require__(12);
 
 var _Barcode3 = _interopRequireDefault(_Barcode2);
 
@@ -20534,7 +20971,7 @@ var pharmacode = function (_Barcode) {
 exports.pharmacode = pharmacode;
 
 /***/ }),
-/* 39 */
+/* 43 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20547,7 +20984,7 @@ exports.codabar = undefined;
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-var _Barcode2 = __webpack_require__(8);
+var _Barcode2 = __webpack_require__(12);
 
 var _Barcode3 = _interopRequireDefault(_Barcode2);
 
@@ -20632,7 +21069,7 @@ var codabar = function (_Barcode) {
 exports.codabar = codabar;
 
 /***/ }),
-/* 40 */
+/* 44 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20645,7 +21082,7 @@ exports.GenericBarcode = undefined;
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-var _Barcode2 = __webpack_require__(8);
+var _Barcode2 = __webpack_require__(12);
 
 var _Barcode3 = _interopRequireDefault(_Barcode2);
 
@@ -20693,7 +21130,7 @@ var GenericBarcode = function (_Barcode) {
 exports.GenericBarcode = GenericBarcode;
 
 /***/ }),
-/* 41 */
+/* 45 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20710,7 +21147,7 @@ exports.default = function (old, replaceObj) {
 };
 
 /***/ }),
-/* 42 */
+/* 46 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20743,7 +21180,7 @@ function linearizeEncodings(encodings) {
 }
 
 /***/ }),
-/* 43 */
+/* 47 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20766,7 +21203,7 @@ function fixOptions(options) {
 }
 
 /***/ }),
-/* 44 */
+/* 48 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20780,15 +21217,15 @@ var _typeof = typeof Symbol === "function" && typeof Symbol.iterator === "symbol
 /* global HTMLCanvasElement */
 /* global SVGElement */
 
-var _getOptionsFromElement = __webpack_require__(45);
+var _getOptionsFromElement = __webpack_require__(49);
 
 var _getOptionsFromElement2 = _interopRequireDefault(_getOptionsFromElement);
 
-var _renderers = __webpack_require__(48);
+var _renderers = __webpack_require__(52);
 
 var _renderers2 = _interopRequireDefault(_renderers);
 
-var _exceptions = __webpack_require__(53);
+var _exceptions = __webpack_require__(57);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -20880,7 +21317,7 @@ function newCanvasRenderProperties(imgElement) {
 exports.default = getRenderProperties;
 
 /***/ }),
-/* 45 */
+/* 49 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20890,11 +21327,11 @@ Object.defineProperty(exports, "__esModule", {
 	value: true
 });
 
-var _optionsFromStrings = __webpack_require__(46);
+var _optionsFromStrings = __webpack_require__(50);
 
 var _optionsFromStrings2 = _interopRequireDefault(_optionsFromStrings);
 
-var _defaults = __webpack_require__(47);
+var _defaults = __webpack_require__(51);
 
 var _defaults2 = _interopRequireDefault(_defaults);
 
@@ -20927,7 +21364,7 @@ function getOptionsFromElement(element) {
 exports.default = getOptionsFromElement;
 
 /***/ }),
-/* 46 */
+/* 50 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20960,7 +21397,7 @@ function optionsFromStrings(options) {
 }
 
 /***/ }),
-/* 47 */
+/* 51 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -20994,7 +21431,7 @@ var defaults = {
 exports.default = defaults;
 
 /***/ }),
-/* 48 */
+/* 52 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -21004,15 +21441,15 @@ Object.defineProperty(exports, "__esModule", {
   value: true
 });
 
-var _canvas = __webpack_require__(49);
+var _canvas = __webpack_require__(53);
 
 var _canvas2 = _interopRequireDefault(_canvas);
 
-var _svg = __webpack_require__(51);
+var _svg = __webpack_require__(55);
 
 var _svg2 = _interopRequireDefault(_svg);
 
-var _object = __webpack_require__(52);
+var _object = __webpack_require__(56);
 
 var _object2 = _interopRequireDefault(_object);
 
@@ -21021,7 +21458,7 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 exports.default = { CanvasRenderer: _canvas2.default, SVGRenderer: _svg2.default, ObjectRenderer: _object2.default };
 
 /***/ }),
-/* 49 */
+/* 53 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -21033,11 +21470,11 @@ Object.defineProperty(exports, "__esModule", {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-var _merge = __webpack_require__(41);
+var _merge = __webpack_require__(45);
 
 var _merge2 = _interopRequireDefault(_merge);
 
-var _shared = __webpack_require__(50);
+var _shared = __webpack_require__(54);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -21185,7 +21622,7 @@ var CanvasRenderer = function () {
 exports.default = CanvasRenderer;
 
 /***/ }),
-/* 50 */
+/* 54 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -21196,7 +21633,7 @@ Object.defineProperty(exports, "__esModule", {
 });
 exports.getTotalWidthOfEncodings = exports.calculateEncodingAttributes = exports.getBarcodePadding = exports.getEncodingHeight = exports.getMaximumHeightOfEncodings = undefined;
 
-var _merge = __webpack_require__(41);
+var _merge = __webpack_require__(45);
 
 var _merge2 = _interopRequireDefault(_merge);
 
@@ -21286,7 +21723,7 @@ exports.calculateEncodingAttributes = calculateEncodingAttributes;
 exports.getTotalWidthOfEncodings = getTotalWidthOfEncodings;
 
 /***/ }),
-/* 51 */
+/* 55 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -21298,11 +21735,11 @@ Object.defineProperty(exports, "__esModule", {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-var _merge = __webpack_require__(41);
+var _merge = __webpack_require__(45);
 
 var _merge2 = _interopRequireDefault(_merge);
 
-var _shared = __webpack_require__(50);
+var _shared = __webpack_require__(54);
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
@@ -21481,7 +21918,7 @@ var SVGRenderer = function () {
 exports.default = SVGRenderer;
 
 /***/ }),
-/* 52 */
+/* 56 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -21517,7 +21954,7 @@ var ObjectRenderer = function () {
 exports.default = ObjectRenderer;
 
 /***/ }),
-/* 53 */
+/* 57 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -21590,7 +22027,7 @@ exports.InvalidElementException = InvalidElementException;
 exports.NoElementException = NoElementException;
 
 /***/ }),
-/* 54 */
+/* 58 */
 /***/ (function(module, exports, __webpack_require__) {
 
 "use strict";
@@ -21650,7 +22087,7 @@ var ErrorHandler = function () {
 exports.default = ErrorHandler;
 
 /***/ }),
-/* 55 */
+/* 59 */
 /***/ (function(module, exports, __webpack_require__) {
 
 /**
