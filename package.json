@@ -1,6 +1,6 @@
 {
   "name": "dfx-first-module",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "npm package develop demo",
   "main": "dist/bundle.js",
   "scripts": {
