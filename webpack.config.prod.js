@@ -1,6 +1,6 @@
 const path = require('path');
 // const nodeExternals = require('webpack-node-externals');
-// const CopyPlugin = require('copy-webpack-plugin');
+const CopyPlugin = require('copy-webpack-plugin');
 
 module.exports = {
   entry: './index.js',
@@ -11,9 +11,9 @@ module.exports = {
     libraryTarget: 'commonjs2'
   },
   plugins: [
-    // new CopyPlugin([
-    //   { from: 'index.d.ts', to: 'bundle.d.ts' },
-    // ]),
+    new CopyPlugin([
+      { from: 'index.d.ts', to: 'bundle.d.ts' },
+    ]),
   ],
   module: {
     rules: [
