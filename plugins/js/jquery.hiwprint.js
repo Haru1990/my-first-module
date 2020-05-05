@@ -1,4 +1,7 @@
-﻿export default function hiwprint($) {
+﻿import hiprintCss from '../js/hiprintCss';
+import printLockCss from '../js/printLockCss';
+
+export default function hiwprint($) {
     $.fn.hiwprint = function (options) {
         var usedFrame = document.getElementById('hiwprint_iframe');
         if (usedFrame) usedFrame.parentNode.removeChild(usedFrame);
@@ -18,6 +21,9 @@
                 });
             }
         }
+        css += '<style type="text/css" media="print">' + hiprintCss + '"</style>';
+        css += '<style type="text/css" media="print">' + printLockCss + '"</style>';
+        
         $iframe[0].srcdoc = '<!DOCTYPE html><html><head><title></title><meta charset="UTF-8">' + css + '</head><body></body></html>';
 
         $iframe[0].onload = function () {
